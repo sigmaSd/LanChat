@@ -11,4 +11,4 @@ name = "rust_lib"
 crate-type = ["dylib"]
 
 [dependencies]
-message-io = { git = "https://github.com/lemunozm/message-io", default-features = false, features = ["udp"] }
+message-io = { default-features = false, features = ["udp"], version = "0.10.2" }

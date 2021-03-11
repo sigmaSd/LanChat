@@ -156,7 +156,8 @@ dependencies = [
 [[package]]
 name = "message-io"
 version = "0.10.2"
-source = "git+https://github.com/lemunozm/message-io#0f54fc69cb1483fc889ffae833074224471a87a5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6511b2dc230daa94cd3b40b9909769910809d1604fa7e54e6c073fce1c931eef"
 dependencies = [
  "crossbeam",
  "log",
