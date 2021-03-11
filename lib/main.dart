@@ -63,7 +63,12 @@ class Body extends StatefulWidget {
 }
 
 class _BodyState extends State<Body> {
-  final input_control = new TextEditingController();
+  final input_control = TextEditingController();
+  final _scrollController = ScrollController();
+  _scrollToBottom() {
+    _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+  }
+
   var chats = [];
 
   @override
@@ -74,6 +79,7 @@ class _BodyState extends State<Body> {
       if (msg != "") {
         setState(() {
           this.chats.add([1, msg]);
+          this._scrollToBottom();
         });
       }
     });
@@ -84,13 +90,40 @@ class _BodyState extends State<Body> {
     return Column(children: <Widget>[
       Expanded(
           child: ListView(
+              controller: _scrollController,
               children: this.chats.map((mc) {
-        final mark = mc[0];
-        final chat = mc[1];
-        return Card(
-            child: Text(chat),
-            color: (mark == 0) ? Color(0xFF42A5F5) : Color(0x0a22b5f5));
-      }).toList())),
+                final mark = mc[0];
+                final chat = mc[1];
+
+                final card = ListTile(
+                  leading: new CircleAvatar(
+                    foregroundColor: Theme.of(context).primaryColor,
+                    backgroundColor: Colors.grey,
+                  ),
+                  title: new Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: <Widget>[
+                      new Text(
+                        (mark) == 0 ? "me" : "other",
+                        style: new TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      new Text(
+                        "time",
+                        style:
+                            new TextStyle(color: Colors.grey, fontSize: 14.0),
+                      ),
+                    ],
+                  ),
+                  subtitle: new Container(
+                    padding: const EdgeInsets.only(top: 5.0),
+                    child: new Text(
+                      chat,
+                      style: new TextStyle(color: Colors.blue, fontSize: 16.0),
+                    ),
+                  ),
+                );
+                return card;
+              }).toList())),
       TextField(
           onSubmitted: (msg) {
             setState(() {
@@ -98,8 +131,10 @@ class _BodyState extends State<Body> {
             });
             send_msg(message_ffi, msg.toNativeUtf8());
             this.input_control.clear();
+            this._scrollToBottom();
           },
-          controller: input_control),
+          controller: input_control,
+          decoration: InputDecoration(border: OutlineInputBorder())),
     ]);
   }
 }
