@@ -95,6 +95,7 @@ class _BodyState extends State<Body> {
                 final mark = mc[0];
                 final chat = mc[1];
 
+				//card taken from https://github.com/Ekeminie/whatsapp_ui
                 final card = ListTile(
                   leading: new CircleAvatar(
                     foregroundColor: Theme.of(context).primaryColor,
