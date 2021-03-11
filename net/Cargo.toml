@@ -1,0 +1,14 @@
+[package]
+name = "net"
+version = "0.1.0"
+authors = ["Nbiba Bedis <bedisnbiba@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "rust_lib"
+crate-type = ["dylib"]
+
+[dependencies]
+message-io = { git = "https://github.com/lemunozm/message-io", default-features = false, features = ["udp"] }

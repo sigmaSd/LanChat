@@ -1,0 +1,6 @@
+#!/bin/fish
+
+cd net
+cargo b
+cd ..
+flutter run $argv
