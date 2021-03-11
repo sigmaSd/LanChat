@@ -1,6 +1,7 @@
-#!/bin/fish
+#!/bin/sh
 
 cd net
 cargo b
+ln -s $CARGO_TARGET_DIR/debug/librust_lib.so ../ &>/dev/null
 cd ..
 flutter run $argv
