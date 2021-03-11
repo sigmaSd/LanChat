@@ -19,10 +19,17 @@ typedef poll_recv_msg_type = Pointer<Utf8> Function(MessageFFi message);
 typedef send_msg_native = Void Function(MessageFFi message, Pointer<Utf8> msg);
 typedef send_msg_dart = void Function(MessageFFi message, Pointer<Utf8> msg);
 
+// linux
 final path = './librust_lib.so';
 // android
-//final path = 'librust_andro_lib.so';
-final dylib = DynamicLibrary.open(path);
+final andro_path = 'librust_andro_lib.so';
+
+final dylib = DynamicLibrary.open((Platform.isLinux)
+    ? path
+    : (Platform.isAndroid)
+        ? andro_path
+        : throw "Add specific platform lib here");
+
 final message_init = dylib
     .lookup<NativeFunction<message_init_type>>('message_init')
     .asFunction<message_init_type>();
