@@ -10,7 +10,7 @@ import 'dart:async';
 ////////////////
 
 class MessageFFi extends Struct {
-  Pointer<Void> _phantomData;
+  Pointer<Void>? _phantomData;
 }
 
 typedef message_init_type = MessageFFi Function(Pointer<Utf8> name);
