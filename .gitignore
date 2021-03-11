@@ -1,0 +1,13 @@
+flutter_01.log
+flutter_02.log
+librust_andro_lib.so
+librust_lib.so
+build
+linux
+android
+ios
+web
+.dart_tool
+.idea/
+.metadata
+.packages
