@@ -1,4 +1,4 @@
-use message_io::network::{NetEvent, Network, Transport};
+use message_io::network::{Endpoint, NetEvent, Network, Transport};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, ffi::CStr, ffi::CString, thread, time::Duration};
 use std::{os::raw::c_char, sync::mpsc};
@@ -17,6 +17,8 @@ pub enum NetMessage {
     UserMessage(String),                     // content
     UserData(String, Chunk),                 // file_name, chunk
     Stream(Option<(Vec<u8>, usize, usize)>), // Option of (stream_data width, height ) None means stream has ended
+    //new
+    PeerBroadcast(String),
 }
 
 impl NetMessage {
@@ -35,16 +37,20 @@ pub struct MessageFFi {
     rx_recv: mpsc::Receiver<String>,
 }
 
+/// # Safety
+/// Internal
 #[no_mangle]
-pub extern "C" fn send_msg(message_ffi: *mut MessageFFi, msg: *mut c_char) {
-    let message: &MessageFFi = unsafe { &*message_ffi };
-    let msg = unsafe { CStr::from_ptr(msg) }.to_string_lossy().to_string();
+pub unsafe extern "C" fn send_msg(message_ffi: *mut MessageFFi, msg: *mut c_char) {
+    let message: &MessageFFi = &*message_ffi;
+    let msg = CStr::from_ptr(msg).to_string_lossy().to_string();
     message.tx.send(UiMessage::Message(msg)).unwrap();
 }
 
+/// # Safety
+/// Internal
 #[no_mangle]
-pub extern "C" fn poll_recv_msg(message_ffi: *mut MessageFFi) -> *mut c_char {
-    let message: &MessageFFi = unsafe { &*message_ffi };
+pub unsafe extern "C" fn poll_recv_msg(message_ffi: *mut MessageFFi) -> *mut c_char {
+    let message: &MessageFFi = &*message_ffi;
     if let Ok(msg) = message.rx_recv.try_recv() {
         CString::new(msg).unwrap().into_raw()
     } else {
@@ -52,9 +58,11 @@ pub extern "C" fn poll_recv_msg(message_ffi: *mut MessageFFi) -> *mut c_char {
     }
 }
 
+/// # Safety
+/// Internal
 #[no_mangle]
-pub extern "C" fn message_init(my_name: *mut c_char) -> *mut MessageFFi {
-    let my_name = unsafe { CStr::from_ptr(my_name) };
+pub unsafe extern "C" fn message_init(my_name: *mut c_char) -> *mut MessageFFi {
+    let my_name = CStr::from_ptr(my_name);
     let my_name = my_name.to_string_lossy().to_string();
 
     let (mut network, mut events) = Network::split();
@@ -82,13 +90,19 @@ pub extern "C" fn message_init(my_name: *mut c_char) -> *mut MessageFFi {
     let (tx_recv, rx_recv) = mpsc::channel();
 
     thread::spawn(move || {
-        let mut peers = HashSet::new();
+        let mut peers: HashSet<Endpoint> = HashSet::new();
         loop {
             std::thread::sleep(Duration::from_millis(100));
             if let Ok(msg) = rx.try_recv() {
                 match msg {
-                    UiMessage::AddPeer(peer) => {
-                        let (peer_endpoint, _) = network.connect(Transport::Tcp, peer).unwrap();
+                    UiMessage::AddPeer(new_peer) => {
+                        //broadcast peer
+                        let msg = NetMessage::PeerBroadcast(new_peer.clone()).ser();
+                        for peer in peers.iter() {
+                            network.send(*peer, &msg);
+                        }
+
+                        let (peer_endpoint, _) = network.connect(Transport::Tcp, new_peer).unwrap();
                         // send hellotcp
                         network.send(peer_endpoint, &NetMessage::HelloUser(my_name.clone()).ser());
                         peers.insert(peer_endpoint);
@@ -133,6 +147,24 @@ pub extern "C" fn message_init(my_name: *mut c_char) -> *mut MessageFFi {
                             }
                             NetMessage::UserData(_, _) => {}
                             NetMessage::Stream(_) => {}
+                            NetMessage::PeerBroadcast(new_peer) => {
+                                dbg!(&peers, &new_peer);
+                                if peers
+                                    .iter()
+                                    .map(|e| e.addr())
+                                    .find(|e| e == &new_peer.parse().unwrap())
+                                    .is_none()
+                                {
+                                    let (peer_endpoint, _) =
+                                        network.connect(Transport::Tcp, new_peer).unwrap();
+                                    // send hellotcp
+                                    network.send(
+                                        peer_endpoint,
+                                        &NetMessage::HelloUser(my_name.clone()).ser(),
+                                    );
+                                    peers.insert(peer_endpoint);
+                                }
+                            }
                         }
                     }
                     NetEvent::Connected(_x) => {}
@@ -150,6 +182,8 @@ enum UiMessage {
     Message(String),
 }
 
+/// # Safety
+/// Internal
 #[no_mangle]
 pub unsafe extern "C" fn add_peer(message_ffi: *mut MessageFFi, peer: *mut c_char) {
     let message_ffi = &*message_ffi;
