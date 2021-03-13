@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/fish
 
 cd net
 cargo b
