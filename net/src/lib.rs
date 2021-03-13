@@ -17,8 +17,6 @@ pub enum NetMessage {
     UserMessage(String),                     // content
     UserData(String, Chunk),                 // file_name, chunk
     Stream(Option<(Vec<u8>, usize, usize)>), // Option of (stream_data width, height ) None means stream has ended
-    //new
-    PeerBroadcast(String),
 }
 
 impl NetMessage {
@@ -35,6 +33,7 @@ impl NetMessage {
 pub struct MessageFFi {
     tx: mpsc::Sender<UiMessage>,
     rx_recv: mpsc::Receiver<String>,
+    my_tcp_addr: String,
 }
 
 /// # Safety
@@ -84,7 +83,7 @@ pub unsafe extern "C" fn message_init(my_name: *mut c_char) -> *mut MessageFFi {
     );
 
     let my_tcp_addr = format!("{}:{}", udp_conn.1.ip(), server_addr.port());
-    dbg!(my_tcp_addr);
+    dbg!(&my_tcp_addr);
 
     let (tx, rx) = mpsc::channel::<UiMessage>();
     let (tx_recv, rx_recv) = mpsc::channel();
@@ -96,12 +95,6 @@ pub unsafe extern "C" fn message_init(my_name: *mut c_char) -> *mut MessageFFi {
             if let Ok(msg) = rx.try_recv() {
                 match msg {
                     UiMessage::AddPeer(new_peer) => {
-                        //broadcast peer
-                        let msg = NetMessage::PeerBroadcast(new_peer.clone()).ser();
-                        for peer in peers.iter() {
-                            network.send(*peer, &msg);
-                        }
-
                         let (peer_endpoint, _) = network.connect(Transport::Tcp, new_peer).unwrap();
                         // send hellotcp
                         network.send(peer_endpoint, &NetMessage::HelloUser(my_name.clone()).ser());
@@ -147,24 +140,6 @@ pub unsafe extern "C" fn message_init(my_name: *mut c_char) -> *mut MessageFFi {
                             }
                             NetMessage::UserData(_, _) => {}
                             NetMessage::Stream(_) => {}
-                            NetMessage::PeerBroadcast(new_peer) => {
-                                dbg!(&peers, &new_peer);
-                                if peers
-                                    .iter()
-                                    .map(|e| e.addr())
-                                    .find(|e| e == &new_peer.parse().unwrap())
-                                    .is_none()
-                                {
-                                    let (peer_endpoint, _) =
-                                        network.connect(Transport::Tcp, new_peer).unwrap();
-                                    // send hellotcp
-                                    network.send(
-                                        peer_endpoint,
-                                        &NetMessage::HelloUser(my_name.clone()).ser(),
-                                    );
-                                    peers.insert(peer_endpoint);
-                                }
-                            }
                         }
                     }
                     NetEvent::Connected(_x) => {}
@@ -174,7 +149,11 @@ pub unsafe extern "C" fn message_init(my_name: *mut c_char) -> *mut MessageFFi {
         }
     });
 
-    Box::into_raw(Box::new(MessageFFi { tx, rx_recv }))
+    Box::into_raw(Box::new(MessageFFi {
+        tx,
+        rx_recv,
+        my_tcp_addr,
+    }))
 }
 
 enum UiMessage {
@@ -192,25 +171,35 @@ pub unsafe extern "C" fn add_peer(message_ffi: *mut MessageFFi, peer: *mut c_cha
     message_ffi.tx.send(UiMessage::AddPeer(peer)).unwrap();
 }
 
+/// # Safety
+/// Internal
+#[no_mangle]
+pub unsafe extern "C" fn get_my_tcp_addr(message_ffi: *mut MessageFFi) -> *mut c_char {
+    let message_ffi = &*message_ffi;
+    CString::new(message_ffi.my_tcp_addr.clone())
+        .unwrap()
+        .into_raw()
+}
+
 #[test]
 fn t() {
-    let m = message_init(CString::new("qaze").unwrap().into_raw());
-    let mut input = String::new();
-    let stdin = std::io::stdin();
-    loop {
-        stdin.read_line(&mut input).unwrap();
-        if input.starts_with("a") {
-            unsafe {
+    unsafe {
+        let m = message_init(CString::new("qaze").unwrap().into_raw());
+        let mut input = String::new();
+        let stdin = std::io::stdin();
+        loop {
+            stdin.read_line(&mut input).unwrap();
+            if input.starts_with("a") {
                 add_peer(
                     m,
                     CString::new(input.trim()[1..].to_owned())
                         .unwrap()
                         .into_raw(),
                 );
+            } else {
+                send_msg(m, CString::new(input.clone()).unwrap().into_raw());
             }
-        } else {
-            send_msg(m, CString::new(input.clone()).unwrap().into_raw());
+            input.clear();
         }
-        input.clear();
     }
 }
