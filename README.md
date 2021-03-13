@@ -12,7 +12,7 @@ It requires cargo and flutter correctly configured.
 
 ## Info
 
-The simplest code is here https://github.com/sigmaSd/LanChat/tree/simple_udp_multicast this shows the rust - flutter integration without unneeded complexity.
+The simplest code is here https://github.com/sigmaSd/LanChat/tree/simple_udp_multicast this shows the rust - flutter integration without unneeded complexity(that comes with addetional features).
 
 It uses only udp multicast for messaging which works great except for android which is hit/miss.
 
