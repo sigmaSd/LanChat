@@ -44,6 +44,10 @@ final add_peer = dylib
     .lookup<NativeFunction<send_msg_native>>('add_peer')
     .asFunction<send_msg_dart>();
 
+final get_my_tcp_addr = dylib
+    .lookup<NativeFunction<poll_recv_msg_type>>('get_my_tcp_addr')
+    .asFunction<poll_recv_msg_type>();
+
 final message_ffi = message_init("User1".toNativeUtf8());
 
 ///////////////
@@ -72,12 +76,31 @@ class MyApp extends StatelessWidget {
                   color: Colors.blue,
                 ),
               ),
-              Page2(),
+              AddIp(),
+              MyIp(),
             ]))));
   }
 }
 
-class Page2 extends StatelessWidget {
+class MyIp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+        title: Text("My Ip adress"),
+        onTap: () {
+          //logic here
+          Navigator.push(context, MaterialPageRoute<void>(
+            builder: (BuildContext context) {
+              return Scaffold(
+                  appBar: AppBar(title: Text('My Ip adress')),
+                  body: Center(child: Text(get_my_tcp_addr(message_ffi).toDartString())));
+            },
+          ));
+        });
+  }
+}
+
+class AddIp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
