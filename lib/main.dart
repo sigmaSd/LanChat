@@ -40,6 +40,10 @@ final poll_recv_msg = dylib
     .lookup<NativeFunction<poll_recv_msg_type>>('poll_recv_msg')
     .asFunction<poll_recv_msg_type>();
 
+final add_peer = dylib
+    .lookup<NativeFunction<send_msg_native>>('add_peer')
+    .asFunction<send_msg_dart>();
+
 final message_ffi = message_init("User1".toNativeUtf8());
 
 ///////////////
@@ -56,11 +60,49 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
         title: "Chat",
         home: Scaffold(
-          appBar: AppBar(
-            title: Text("Chat"),
-          ),
-          body: Body(),
-        ));
+            appBar: AppBar(
+              title: Text("Chat"),
+            ),
+            body: Body(),
+            drawer: Drawer(
+                child: ListView(children: [
+              DrawerHeader(
+                child: Text('Drawer Header'),
+                decoration: BoxDecoration(
+                  color: Colors.blue,
+                ),
+              ),
+              Page2(),
+            ]))));
+  }
+}
+
+class Page2 extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+        title: Text("Add ip adress"),
+        onTap: () {
+          //logic here
+          Navigator.push(context, MaterialPageRoute<void>(
+            builder: (BuildContext context) {
+              return Scaffold(
+                  appBar: AppBar(title: Text('Add ip adress')),
+                  body: Center(
+                      child: Column(children: [
+                    TextField(
+                      decoration: InputDecoration(
+                          border: OutlineInputBorder(),
+                          hintText: '192.168.1.2:62555'),
+                      onSubmitted: (peer) {
+                        add_peer(message_ffi, peer.toNativeUtf8());
+                        Navigator.pop(context);
+                      },
+                    ),
+                  ])));
+            },
+          ));
+        });
   }
 }
 
