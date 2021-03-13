@@ -93,7 +93,9 @@ class MyIp extends StatelessWidget {
             builder: (BuildContext context) {
               return Scaffold(
                   appBar: AppBar(title: Text('My Ip adress')),
-                  body: Center(child: Text(get_my_tcp_addr(message_ffi).toDartString())));
+                  body: Center(
+                      child:
+                          Text(get_my_tcp_addr(message_ffi).toDartString())));
             },
           ));
         });
@@ -101,6 +103,8 @@ class MyIp extends StatelessWidget {
 }
 
 class AddIp extends StatelessWidget {
+  final name_input = TextEditingController();
+  final ip_input = TextEditingController();
   @override
   Widget build(BuildContext context) {
     return ListTile(
@@ -113,15 +117,27 @@ class AddIp extends StatelessWidget {
                   appBar: AppBar(title: Text('Add ip adress')),
                   body: Center(
                       child: Column(children: [
+                    Text("Peer name:"),
+                    TextField(
+                      controller: name_input,
+                      decoration: InputDecoration(
+                          border: OutlineInputBorder(), hintText: 'otherme'),
+                    ),
+                    Text("Ip:"),
                     TextField(
                       decoration: InputDecoration(
                           border: OutlineInputBorder(),
                           hintText: '192.168.1.2:62555'),
-                      onSubmitted: (peer) {
-                        add_peer(message_ffi, peer.toNativeUtf8());
-                        Navigator.pop(context);
-                      },
+                      controller: ip_input,
                     ),
+                    ElevatedButton(
+                        child: Text("Ok"),
+                        onPressed: () {
+                          final peer =
+                              this.name_input.text + ';' + this.ip_input.text;
+                          add_peer(message_ffi, peer.toNativeUtf8());
+                          Navigator.pop(context);
+                        })
                   ])));
             },
           ));
@@ -150,7 +166,7 @@ class _BodyState extends State<Body> {
       final msg = poll_recv_msg(message_ffi).toDartString();
       if (msg != "") {
         setState(() {
-          this.chats.add([1, msg]);
+          this.chats.add(msg);
           this._scrollToBottom();
         });
       }
@@ -164,8 +180,8 @@ class _BodyState extends State<Body> {
           child: ListView(
               controller: _scrollController,
               children: this.chats.map((mc) {
-                final mark = mc[0];
-                final chat = mc[1];
+                final user = mc.split(';')[0];
+                final chat = mc.split(';')[1];
 
                 //card taken from https://github.com/Ekeminie/whatsapp_ui
                 final card = ListTile(
@@ -177,7 +193,7 @@ class _BodyState extends State<Body> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: <Widget>[
                       new Text(
-                        (mark) == 0 ? "me" : "other",
+                        user,
                         style: new TextStyle(fontWeight: FontWeight.bold),
                       ),
                       new Text(
@@ -200,7 +216,7 @@ class _BodyState extends State<Body> {
       TextField(
           onSubmitted: (msg) {
             setState(() {
-              this.chats.add([0, msg]);
+              this.chats.add("me;"+msg);
             });
             send_msg(message_ffi, msg.toNativeUtf8());
             this.input_control.clear();
