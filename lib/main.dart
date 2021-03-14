@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:file_picker/file_picker.dart';
 
 ////////////////
 ///////FFI//////
@@ -191,6 +192,7 @@ class _BodyState extends State<Body> {
     new Timer.periodic(Duration(milliseconds: 100), (Timer t) {
       final msg = poll_recv_msg(message_ffi).toDartString();
       if (msg != "") {
+			  print(msg);
         setState(() {
           this.chats.add("${now()};$msg");
         });
@@ -248,6 +250,7 @@ class _BodyState extends State<Body> {
                             final tmpDir = await getTemporaryDirectory();
                             final chat_s = chat.split("file:///");
                             final path = chat_s[0] + tmpDir.path + chat_s[1];
+                            print(path);
                             launch(path);
                           }
                         },
@@ -307,18 +310,32 @@ class _BodyState extends State<Body> {
               border: OutlineInputBorder(),
               suffixIcon: IconButton(
                 onPressed: () async {
-                  final file = await openFile();
-                  if (file != null) {
-                    final path = file.path;
-                    setState(() {
-                      this.chats.add("${now()};me;$path");
-                    });
-                    send_file(message_ffi, path.toNativeUtf8());
+                  var path;
+                  if (Platform.isAndroid) {
+                    final result = await FilePicker.platform.pickFiles();
 
-                    String fileUri = "file:///" + basename(path);
-                    print(fileUri);
-                    send_msg(message_ffi, fileUri.toNativeUtf8());
+                    if (result != null) {
+                      path = result.files.single.path;
+                    } else {
+                      return;
+                    }
+                  } else {
+                    final file = await openFile();
+                    if (file != null) {
+                      path = file.path;
+                    } else {
+                      return;
+                    }
                   }
+                  setState(() {
+                    this.chats.add("${now()};me;$path");
+                  });
+                  String fileUri = "file:///" + basename(path);
+				  //send msg needs to happen before send file!!
+                  send_msg(message_ffi, "$fileUri".toNativeUtf8());
+                  send_file(message_ffi, "$path".toNativeUtf8());
+
+                  print("fileuri=$fileUri");
                 },
                 icon: Icon(Icons.send),
               ))),

@@ -29,8 +29,12 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.2
   ffi: ^1.0.0
+  #desktop
   file_selector: ^0.8.2
   file_selector_linux: ^0.0.2
+  #mobile
+  file_picker: ^3.0.0
+
   url_launcher: ^6.0.2
   path_provider: ^2.0.1
 
