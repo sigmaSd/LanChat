@@ -58,6 +58,8 @@ void main() {
   runApp(MyApp());
 }
 
+var clearFlag = ValueNotifier(false);
+
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -68,10 +70,24 @@ class MyApp extends StatelessWidget {
               title: Text("Chat"),
             ),
             body: Body(),
+            floatingActionButton: Container(
+                decoration:
+                    BoxDecoration(border: Border.all(color: Colors.red)),
+                child: TextButton(
+                  child: Text("Clear chat",
+                      style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red)),
+                  onPressed: () {
+                    clearFlag.value = true;
+                  },
+                )),
+            floatingActionButtonLocation: FloatingActionButtonLocation.endTop,
             drawer: Drawer(
                 child: ListView(children: [
               DrawerHeader(
-                child: Text('Drawer Header'),
+                child: Icon(Icons.ac_unit_outlined, size: 42),
                 decoration: BoxDecoration(
                   color: Colors.blue,
                 ),
@@ -86,7 +102,7 @@ class MyIp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-        title: Text("My Ip adress"),
+        title: Text("My Ip adress", style: TextStyle(fontSize: 22)),
         onTap: () {
           //logic here
           Navigator.push(context, MaterialPageRoute<void>(
@@ -94,8 +110,10 @@ class MyIp extends StatelessWidget {
               return Scaffold(
                   appBar: AppBar(title: Text('My Ip adress')),
                   body: Center(
-                      child:
-                          Text(get_my_tcp_addr(message_ffi).toDartString())));
+                      child: Text(
+                    get_my_tcp_addr(message_ffi).toDartString(),
+                    style: TextStyle(fontSize: 30),
+                  )));
             },
           ));
         });
@@ -108,7 +126,7 @@ class AddIp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-        title: Text("Add ip adress"),
+        title: Text("Add ip adress", style: TextStyle(fontSize: 22)),
         onTap: () {
           //logic here
           Navigator.push(context, MaterialPageRoute<void>(
@@ -117,19 +135,20 @@ class AddIp extends StatelessWidget {
                   appBar: AppBar(title: Text('Add ip adress')),
                   body: Center(
                       child: Column(children: [
-                    Text("Peer name:"),
+                    Text("Peer name:", style: TextStyle(fontSize: 20)),
                     TextField(
                       controller: name_input,
                       decoration: InputDecoration(
                           border: OutlineInputBorder(), hintText: 'otherme'),
                     ),
-                    Text("Ip:"),
+                    Text("Ip:", style: TextStyle(fontSize: 20)),
                     TextField(
                       decoration: InputDecoration(
                           border: OutlineInputBorder(),
                           hintText: '192.168.1.2:62555'),
                       controller: ip_input,
                     ),
+                    Divider(),
                     ElevatedButton(
                         child: Text("Ok"),
                         onPressed: () {
@@ -154,7 +173,8 @@ class _BodyState extends State<Body> {
   final input_control = TextEditingController();
   final _scrollController = ScrollController();
   _scrollToBottom() {
-    _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+    _scrollController.animateTo(_scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 500), curve: Curves.easeOut);
   }
 
   var chats = [];
@@ -162,14 +182,23 @@ class _BodyState extends State<Body> {
   @override
   void initState() {
     super.initState();
-    new Timer.periodic(Duration(seconds: 1), (Timer t) {
+    new Timer.periodic(Duration(milliseconds: 100), (Timer t) {
       final msg = poll_recv_msg(message_ffi).toDartString();
       if (msg != "") {
         setState(() {
-          this.chats.add(msg);
-          this._scrollToBottom();
+          final date = DateTime.now();
+          final now =
+              "${date.year}-${date.month}-${date.day} ${date.hour}:${date.minute}";
+          this.chats.add("$now;$msg");
         });
+        this._scrollToBottom();
       }
+    });
+    clearFlag.addListener(() {
+      setState(() {
+        this.chats.clear();
+        clearFlag.value = false;
+      });
     });
   }
 
@@ -180,43 +209,77 @@ class _BodyState extends State<Body> {
           child: ListView(
               controller: _scrollController,
               children: this.chats.map((mc) {
-                final user = mc.split(';')[0];
-                final chat = mc.split(';')[1];
+                final now = mc.split(';')[0];
+                final user = mc.split(';')[1];
+                final chat = mc.split(';')[2];
 
-                //card taken from https://github.com/Ekeminie/whatsapp_ui
-                final card = ListTile(
-                  leading: new CircleAvatar(
-                    foregroundColor: Theme.of(context).primaryColor,
-                    backgroundColor: Colors.grey,
-                  ),
-                  title: new Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: <Widget>[
-                      new Text(
-                        user,
-                        style: new TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      new Text(
-                        "time",
-                        style:
-                            new TextStyle(color: Colors.grey, fontSize: 14.0),
-                      ),
-                    ],
-                  ),
-                  subtitle: new Container(
-                    padding: const EdgeInsets.only(top: 5.0),
-                    child: new Text(
-                      chat,
-                      style: new TextStyle(color: Colors.blue, fontSize: 16.0),
-                    ),
-                  ),
-                );
+                final card = (user == "me")
+                    ? ListTile(
+                        leading: new CircleAvatar(
+                            foregroundColor: Theme.of(context).primaryColor,
+                            child: Text(user[0].toUpperCase())),
+                        title: new Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: <Widget>[
+                            new Text(
+                              user,
+                              style: new TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            new Text(
+                              now,
+                              style: new TextStyle(
+                                  color: Colors.grey, fontSize: 14.0),
+                            ),
+                          ],
+                        ),
+                        subtitle: new Container(
+                          padding: const EdgeInsets.only(top: 5.0),
+                          child: new Text(
+                            chat,
+                            style: new TextStyle(
+                                color: Colors.blue, fontSize: 16.0),
+                          ),
+                        ),
+                      )
+                    : ListTile(
+                        trailing: new CircleAvatar(
+                          foregroundColor: Theme.of(context).primaryColor,
+                          child: Text(user[0].toUpperCase()),
+                        ),
+                        title: new Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: <Widget>[
+                            new Text(
+                              now,
+                              style: new TextStyle(
+                                  color: Colors.grey, fontSize: 14.0),
+                            ),
+                            new Text(
+                              user,
+                              style: new TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        subtitle: Align(
+                            alignment: Alignment.centerRight,
+                            child: Container(
+                              padding: const EdgeInsets.only(top: 5.0),
+                              child: new Text(
+                                chat,
+                                style: new TextStyle(
+                                    color: Colors.blue, fontSize: 16.0),
+                              ),
+                            )),
+                      );
                 return card;
               }).toList())),
       TextField(
           onSubmitted: (msg) {
             setState(() {
-              this.chats.add("me;"+msg);
+              final date = DateTime.now();
+              final now =
+                  "${date.year}-${date.month}-${date.day} ${date.hour}:${date.minute}";
+              this.chats.add("$now;me;$msg");
             });
             send_msg(message_ffi, msg.toNativeUtf8());
             this.input_control.clear();
