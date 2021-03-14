@@ -22,7 +22,8 @@ It uses only udp multicast for messaging which works great except for android wh
 ### Current work
 
 The master branch tracks the actual developement.
-I uses udp multicast for peer discovery and tcp for the actual communications.
+
+It uses udp multicast for peer discovery and tcp for the actual communications.
 
 This allows manually adding hosts that are not found automaticlly (android+++).
 
