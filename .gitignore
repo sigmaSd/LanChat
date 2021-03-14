@@ -13,3 +13,6 @@ web
 .packages
 runandro
 net/andronet
+.flutter-plugins
+.flutter-plugins-dependencies
+lib/generated_plugin_registrant.dart
