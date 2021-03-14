@@ -3,19 +3,19 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, ffi::CStr, ffi::CString, thread, time::Duration};
 use std::{os::raw::c_char, sync::mpsc};
 
-#[derive(Serialize, Deserialize)]
-pub enum Chunk {
-    Data(Vec<u8>),
-    Error,
-    End,
-}
+// #[derive(Serialize, Deserialize)]
+// pub enum Chunk {
+//     Data(Vec<u8>),
+//     Error,
+//     End,
+// }
 
 #[derive(Serialize, Deserialize)]
 pub enum NetMessage {
     HelloLan(String, u16),                   // user_name, server_port
     HelloUser(String),                       // user_name
     UserMessage(String),                     // content
-    UserData(String, Chunk),                 // file_name, chunk
+    UserData(String, Vec<u8>),               // file_name, chunk
     Stream(Option<(Vec<u8>, usize, usize)>), // Option of (stream_data width, height ) None means stream has ended
 }
 
@@ -23,8 +23,8 @@ impl NetMessage {
     fn ser(&self) -> Vec<u8> {
         bincode::serialize(self).unwrap()
     }
-    fn deser(msg: Vec<u8>) -> Self {
-        bincode::deserialize(&msg).unwrap()
+    fn deser(msg: &[u8]) -> Result<Self, Box<bincode::ErrorKind>> {
+        bincode::deserialize(msg)
     }
 }
 
@@ -91,6 +91,8 @@ pub unsafe extern "C" fn message_init(my_name: *mut c_char) -> *mut MessageFFi {
     thread::spawn(move || {
         // peers: Endpoint,Name
         let mut peers: HashSet<(Endpoint, String)> = HashSet::new();
+        let mut data_buffer = vec![];
+
         loop {
             std::thread::sleep(Duration::from_millis(100));
             if let Ok(msg) = rx.try_recv() {
@@ -107,12 +109,27 @@ pub unsafe extern "C" fn message_init(my_name: *mut c_char) -> *mut MessageFFi {
                             network.send(peer.0, &msg);
                         }
                     }
+                    UiMessage::Data(file_name, data) => {
+                        let msg = NetMessage::UserData(file_name, data).ser();
+                        for peer in peers.iter() {
+                            network.send(peer.0, &msg);
+                        }
+                    }
                 }
             }
             if let Some(ev) = events.try_receive() {
                 match ev {
                     NetEvent::Message(endpoint, message) => {
-                        let message = NetMessage::deser(message);
+                        let message = {
+                            data_buffer.extend(message);
+                            match NetMessage::deser(&data_buffer) {
+                                Ok(data) => {
+                                    data_buffer.clear();
+                                    data
+                                }
+                                Err(_) => continue,
+                            }
+                        };
                         match message {
                             NetMessage::HelloLan(user_name, tcp_server_port) => {
                                 if udp_conn.1 != endpoint.addr() {
@@ -139,7 +156,11 @@ pub unsafe extern "C" fn message_init(my_name: *mut c_char) -> *mut MessageFFi {
                                     tx_recv.send(peer.1.clone() + ";" + &data).unwrap();
                                 }
                             }
-                            NetMessage::UserData(_, _) => {}
+                            NetMessage::UserData(file_name, data) => {
+                                let path = std::env::temp_dir().join(file_name);
+                                dbg!(&path);
+                                std::fs::write(&path, data).unwrap();
+                            }
                             NetMessage::Stream(_) => {}
                         }
                     }
@@ -160,6 +181,7 @@ pub unsafe extern "C" fn message_init(my_name: *mut c_char) -> *mut MessageFFi {
 enum UiMessage {
     AddPeer(String, String),
     Message(String),
+    Data(String, Vec<u8>),
 }
 
 /// # Safety
@@ -189,6 +211,25 @@ pub unsafe extern "C" fn get_my_tcp_addr(message_ffi: *mut MessageFFi) -> *mut c
         .into_raw()
 }
 
+/// # Safety
+/// Internal
+#[no_mangle]
+pub unsafe extern "C" fn send_file(message_ffi: *mut MessageFFi, file_path: *mut c_char) {
+    let message_ffi = &*message_ffi;
+    let file_path = CStr::from_ptr(file_path).to_string_lossy().to_string();
+    let file_name = std::path::Path::new(&file_path)
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_owned();
+    let data = std::fs::read(file_path).unwrap();
+    message_ffi
+        .tx
+        .send(UiMessage::Data(file_name, data))
+        .unwrap();
+}
+
 #[test]
 fn t() {
     unsafe {
@@ -201,6 +242,21 @@ fn t() {
                 add_peer(
                     m,
                     CString::new(input.trim()[1..].to_owned())
+                        .unwrap()
+                        .into_raw(),
+                );
+            } else if input.starts_with("s") {
+                let path = input.trim()[1..].to_owned();
+                send_file(m, CString::new(path.clone()).unwrap().into_raw());
+                let file_name = std::path::Path::new(&path)
+                    .file_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_owned();
+                send_msg(
+                    m,
+                    CString::new("file:///".to_string() + &file_name)
                         .unwrap()
                         .into_raw(),
                 );

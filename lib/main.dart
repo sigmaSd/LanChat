@@ -1,9 +1,12 @@
 import 'dart:ffi';
-import 'dart:io' show Platform, sleep;
-import 'package:flutter/material.dart';
-import 'dart:isolate';
-import 'package:ffi/ffi.dart';
+import 'dart:io' show Platform, File;
+import 'package:path/path.dart';
 import 'dart:async';
+import 'package:ffi/ffi.dart';
+import 'package:flutter/material.dart';
+import 'package:file_selector/file_selector.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:path_provider/path_provider.dart';
 
 ////////////////
 ///////FFI//////
@@ -35,6 +38,9 @@ final message_init = dylib
     .asFunction<message_init_type>();
 final send_msg = dylib
     .lookup<NativeFunction<send_msg_native>>('send_msg')
+    .asFunction<send_msg_dart>();
+final send_file = dylib
+    .lookup<NativeFunction<send_msg_native>>('send_file')
     .asFunction<send_msg_dart>();
 final poll_recv_msg = dylib
     .lookup<NativeFunction<poll_recv_msg_type>>('poll_recv_msg')
@@ -186,10 +192,7 @@ class _BodyState extends State<Body> {
       final msg = poll_recv_msg(message_ffi).toDartString();
       if (msg != "") {
         setState(() {
-          final date = DateTime.now();
-          final now =
-              "${date.year}-${date.month}-${date.day} ${date.hour}:${date.minute}";
-          this.chats.add("$now;$msg");
+          this.chats.add("${now()};$msg");
         });
         this._scrollToBottom();
       }
@@ -240,6 +243,14 @@ class _BodyState extends State<Body> {
                                 color: Colors.blue, fontSize: 16.0),
                           ),
                         ),
+                        onTap: () async {
+                          if (chat.startsWith("file:///")) {
+                            final tmpDir = await getTemporaryDirectory();
+                            final chat_s = chat.split("file:///");
+                            final path = chat_s[0] + tmpDir.path + chat_s[1];
+                            launch(path);
+                          }
+                        },
                       )
                     : ListTile(
                         trailing: new CircleAvatar(
@@ -270,23 +281,53 @@ class _BodyState extends State<Body> {
                                     color: Colors.blue, fontSize: 16.0),
                               ),
                             )),
+                        onTap: () async {
+                          if (chat.startsWith("file:///")) {
+                            final tmpDir = await getTemporaryDirectory();
+                            final chat_s = chat.split("file:///");
+                            final path =
+                                "file://" + tmpDir.path + "/" + chat_s[1];
+                            launch(path);
+                          }
+                        },
                       );
                 return card;
               }).toList())),
       TextField(
           onSubmitted: (msg) {
             setState(() {
-              final date = DateTime.now();
-              final now =
-                  "${date.year}-${date.month}-${date.day} ${date.hour}:${date.minute}";
-              this.chats.add("$now;me;$msg");
+              this.chats.add("${now()};me;$msg");
             });
             send_msg(message_ffi, msg.toNativeUtf8());
             this.input_control.clear();
             this._scrollToBottom();
           },
           controller: input_control,
-          decoration: InputDecoration(border: OutlineInputBorder())),
+          decoration: InputDecoration(
+              border: OutlineInputBorder(),
+              suffixIcon: IconButton(
+                onPressed: () async {
+                  final file = await openFile();
+                  if (file != null) {
+                    final path = file.path;
+                    setState(() {
+                      this.chats.add("${now()};me;$path");
+                    });
+                    send_file(message_ffi, path.toNativeUtf8());
+
+                    String fileUri = "file:///" + basename(path);
+                    print(fileUri);
+                    send_msg(message_ffi, fileUri.toNativeUtf8());
+                  }
+                },
+                icon: Icon(Icons.send),
+              ))),
     ]);
   }
+}
+
+// helpers
+String now() {
+  final date = DateTime.now();
+  return "${date.year}-${date.month}-${date.day} ${date.hour}:${date.minute}";
 }
