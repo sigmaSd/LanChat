@@ -1,8 +1,7 @@
 FROM gitpod/workspace-full
 
 ENV FLUTTER_HOME=/home/gitpod/flutter \
-    FLUTTER_VERSION=v2.12.0
-
+    FLUTTER_VERSION=v1.9.1+hotfix.6-stable
 # Install dart
 USER root
 
