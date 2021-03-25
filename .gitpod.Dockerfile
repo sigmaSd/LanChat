@@ -5,23 +5,8 @@ ENV FLUTTER_HOME=/home/gitpod/flutter
 # Install dart
 USER root
 
-RUN curl https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - && \
-    apt-get update && \
-    apt-get -y install libgtk-3-dev libpulse0 build-essential libkrb5-dev gcc make && \
-    apt-get clean && \
-    apt-get -y autoremove && \
-    apt-get -y clean && \
-    rm -rf /var/lib/apt/lists/*;
-
-# Install android studio
-RUN add-apt-repository ppa:maarten-fonville/android-studio && \
-    apt-get update && \
-    apt-get install android-sdk \
-        lib32stdc++6 \
-        android-studio \
-        android-sdk-build-tools \
-        android-sdk \
-        android-sdk-platform-23 --no-install-recommends --yes
+RUN apt-get update && \
+    apt-get -y install libgtk-3-dev
 
 USER gitpod
 
@@ -30,7 +15,7 @@ RUN cd /home/gitpod && \
   wget -qO flutter_sdk.tar.xz https://storage.googleapis.com/flutter_infra/releases/stable/linux/flutter_linux_2.0.3-stable.tar.xz && \
   tar -xvf flutter_sdk.tar.xz && rm flutter_sdk.tar.xz
 
-RUN $FLUTTER_HOME/bin/flutter channel master && $FLUTTER_HOME/bin/flutter upgrade && $FLUTTER_HOME/bin/flutter config --enable-linux-desktop
+RUN $FLUTTER_HOME/bin/flutter upgrade && $FLUTTER_HOME/bin/flutter config --enable-linux-desktop
 
 # Change the PUB_CACHE to /workspace so dependencies are preserved.
 ENV PUB_CACHE=/workspace/.pub_cache
