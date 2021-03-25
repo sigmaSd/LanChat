@@ -31,7 +31,7 @@ RUN cd /home/gitpod && \
   tar -xvf flutter_sdk.tar.xz && rm flutter_sdk.tar.xz
 
 # linux is available on master channel
-RUN $FLUTTER_HOME/bin/flutter channel master && $FLUTTER_HOME/bin/flutter upgrade && $FLUTTER_HOME/bin/flutter config --enable-linux
+RUN $FLUTTER_HOME/bin/flutter channel master && $FLUTTER_HOME/bin/flutter upgrade && $FLUTTER_HOME/bin/flutter config --enable-desktop-linux
 
 # Change the PUB_CACHE to /workspace so dependencies are preserved.
 ENV PUB_CACHE=/workspace/.pub_cache
