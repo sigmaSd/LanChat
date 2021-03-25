@@ -1,13 +1,13 @@
 FROM gitpod/workspace-full-vnc
 
-ENV FLUTTER_HOME=/home/gitpod/flutter \
-    FLUTTER_VERSION=v1.9.1+hotfix.6-stable
+ENV FLUTTER_HOME=/home/gitpod/flutter
+
 # Install dart
 USER root
 
 RUN curl https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - && \
     apt-get update && \
-    apt-get -y install libpulse0 build-essential libkrb5-dev gcc make && \
+    apt-get -y install libgtk-3-dev libpulse0 build-essential libkrb5-dev gcc make && \
     apt-get clean && \
     apt-get -y autoremove && \
     apt-get -y clean && \
@@ -27,11 +27,10 @@ USER gitpod
 
 # Install Flutter sdk
 RUN cd /home/gitpod && \
-  wget -qO flutter_sdk.tar.xz https://storage.googleapis.com/flutter_infra/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}.tar.xz && \
+  wget -qO flutter_sdk.tar.xz https://storage.googleapis.com/flutter_infra/releases/stable/linux/flutter_linux_2.0.3-stable.tar.xz && \
   tar -xvf flutter_sdk.tar.xz && rm flutter_sdk.tar.xz
 
-# linux is available on master channel
-RUN $FLUTTER_HOME/bin/flutter channel master && $FLUTTER_HOME/bin/flutter upgrade && $FLUTTER_HOME/bin/flutter config --enable-desktop-linux
+RUN $FLUTTER_HOME/bin/flutter channel master && $FLUTTER_HOME/bin/flutter upgrade && $FLUTTER_HOME/bin/flutter config --enable-linux-desktop
 
 # Change the PUB_CACHE to /workspace so dependencies are preserved.
 ENV PUB_CACHE=/workspace/.pub_cache
