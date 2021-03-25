@@ -1,4 +1,4 @@
-FROM gitpod/workspace-full
+FROM gitpod/workspace-full-vnc
 
 ENV FLUTTER_HOME=/home/gitpod/flutter \
     FLUTTER_VERSION=v1.9.1+hotfix.6-stable
@@ -12,6 +12,16 @@ RUN curl https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - &
     apt-get -y autoremove && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*;
+
+# Install android studio
+RUN add-apt-repository ppa:maarten-fonville/android-studio && \
+    apt-get update && \
+    apt-get install android-sdk \
+        lib32stdc++6 \
+        android-studio \
+        android-sdk-build-tools \
+        android-sdk \
+        android-sdk-platform-23 --no-install-recommends --yes
 
 USER gitpod
 
