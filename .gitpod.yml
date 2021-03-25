@@ -5,7 +5,7 @@ tasks:
     source ~/.bashrc
   init: >
     flutter upgrade && 
-    flutter update-packages --force-upgrade &&
+    flutter update-packages --force-upgrade
 vscode:
   extensions:
     - Dart-Code.dart-code@3.5.1:W6zqgIED1gxtkBH/pbfGXA==
