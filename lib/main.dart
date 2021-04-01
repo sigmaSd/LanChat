@@ -1,5 +1,5 @@
 import 'dart:ffi';
-import 'dart:io' show Platform, File;
+import 'dart:io' show Platform;
 import 'package:path/path.dart';
 import 'dart:async';
 import 'package:ffi/ffi.dart';
@@ -14,7 +14,7 @@ import 'package:file_picker/file_picker.dart';
 ////////////////
 
 class MessageFFi extends Struct {
-  Pointer<Void>? _phantomData;
+  Pointer<Void>? _;
 }
 
 typedef message_init_type = MessageFFi Function(Pointer<Utf8> name);
@@ -26,36 +26,36 @@ typedef send_msg_dart = void Function(MessageFFi message, Pointer<Utf8> msg);
 // linux
 final path = './librust_lib.so';
 // android
-final andro_path = 'librust_andro_lib.so';
+final androPath = 'librust_andro_lib.so';
 
 final dylib = DynamicLibrary.open((Platform.isLinux)
     ? path
     : (Platform.isAndroid)
-        ? andro_path
+        ? androPath
         : throw "Add specific platform lib here");
 
-final message_init = dylib
+final messageInit = dylib
     .lookup<NativeFunction<message_init_type>>('message_init')
     .asFunction<message_init_type>();
-final send_msg = dylib
+final sendMsg = dylib
     .lookup<NativeFunction<send_msg_native>>('send_msg')
     .asFunction<send_msg_dart>();
-final send_file = dylib
+final sendFile = dylib
     .lookup<NativeFunction<send_msg_native>>('send_file')
     .asFunction<send_msg_dart>();
-final poll_recv_msg = dylib
+final pollRecvMsg = dylib
     .lookup<NativeFunction<poll_recv_msg_type>>('poll_recv_msg')
     .asFunction<poll_recv_msg_type>();
 
-final add_peer = dylib
+final addPeer = dylib
     .lookup<NativeFunction<send_msg_native>>('add_peer')
     .asFunction<send_msg_dart>();
 
-final get_my_tcp_addr = dylib
+final getMyTcpAddr = dylib
     .lookup<NativeFunction<poll_recv_msg_type>>('get_my_tcp_addr')
     .asFunction<poll_recv_msg_type>();
 
-final message_ffi = message_init("User1".toNativeUtf8());
+final messageFfi = messageInit("User1".toNativeUtf8());
 
 ///////////////
 ///////////////
@@ -65,18 +65,18 @@ void main() {
   runApp(MyApp());
 }
 
-var clearFlag = ValueNotifier(false);
-
 class MyApp extends StatelessWidget {
+  final Body body = Body();
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
         title: "Chat",
         home: Scaffold(
             appBar: AppBar(
-              title: Text("Chat"),
+              title: Text("LanChat"),
             ),
-            body: Body(),
+            body: body,
             floatingActionButton: Container(
                 decoration:
                     BoxDecoration(border: Border.all(color: Colors.red)),
@@ -87,7 +87,7 @@ class MyApp extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                           color: Colors.red)),
                   onPressed: () {
-                    clearFlag.value = true;
+                    body.clearChat();
                   },
                 )),
             floatingActionButtonLocation: FloatingActionButtonLocation.endTop,
@@ -118,7 +118,7 @@ class MyIp extends StatelessWidget {
                   appBar: AppBar(title: Text('My Ip adress')),
                   body: Center(
                       child: Text(
-                    get_my_tcp_addr(message_ffi).toDartString(),
+                    getMyTcpAddr(messageFfi).toDartString(),
                     style: TextStyle(fontSize: 30),
                   )));
             },
@@ -128,8 +128,8 @@ class MyIp extends StatelessWidget {
 }
 
 class AddIp extends StatelessWidget {
-  final name_input = TextEditingController();
-  final ip_input = TextEditingController();
+  final nameInput = TextEditingController();
+  final ipInput = TextEditingController();
   @override
   Widget build(BuildContext context) {
     return ListTile(
@@ -144,7 +144,7 @@ class AddIp extends StatelessWidget {
                       child: Column(children: [
                     Text("Peer name:", style: TextStyle(fontSize: 20)),
                     TextField(
-                      controller: name_input,
+                      controller: nameInput,
                       decoration: InputDecoration(
                           border: OutlineInputBorder(), hintText: 'otherme'),
                     ),
@@ -153,15 +153,15 @@ class AddIp extends StatelessWidget {
                       decoration: InputDecoration(
                           border: OutlineInputBorder(),
                           hintText: '192.168.1.2:62555'),
-                      controller: ip_input,
+                      controller: ipInput,
                     ),
                     Divider(),
                     ElevatedButton(
                         child: Text("Ok"),
                         onPressed: () {
                           final peer =
-                              this.name_input.text + ';' + this.ip_input.text;
-                          add_peer(message_ffi, peer.toNativeUtf8());
+                              this.nameInput.text + ';' + this.ipInput.text;
+                          addPeer(messageFfi, peer.toNativeUtf8());
                           Navigator.pop(context);
                         })
                   ])));
@@ -172,48 +172,51 @@ class AddIp extends StatelessWidget {
 }
 
 class Body extends StatefulWidget {
+  final chats = [];
+  final bodyState = _BodyState();
+
   @override
-  _BodyState createState() => _BodyState();
+  _BodyState createState() => bodyState;
+
+  void clearChat() {
+    bodyState.clearChat();
+  }
 }
 
 class _BodyState extends State<Body> {
-  final input_control = TextEditingController();
+  final inputControl = TextEditingController();
   final _scrollController = ScrollController();
   _scrollToBottom() {
     _scrollController.animateTo(_scrollController.position.maxScrollExtent,
         duration: const Duration(milliseconds: 500), curve: Curves.easeOut);
   }
 
-  var chats = [];
+  void clearChat() {
+    setState(() {
+      widget.chats.clear();
+    });
+  }
 
-  @override
   void initState() {
     super.initState();
     new Timer.periodic(Duration(milliseconds: 100), (Timer t) {
-      final msg = poll_recv_msg(message_ffi).toDartString();
+      final msg = pollRecvMsg(messageFfi).toDartString();
       if (msg != "") {
-			  print(msg);
+        print(msg);
         setState(() {
-          this.chats.add("${now()};$msg");
+          widget.chats.add("${now()};$msg");
         });
         this._scrollToBottom();
       }
     });
-    clearFlag.addListener(() {
-      setState(() {
-        this.chats.clear();
-        clearFlag.value = false;
-      });
-    });
   }
 
-  @override
   Widget build(BuildContext context) {
     return Column(children: <Widget>[
       Expanded(
           child: ListView(
               controller: _scrollController,
-              children: this.chats.map((mc) {
+              children: widget.chats.map((mc) {
                 final now = mc.split(';')[0];
                 final user = mc.split(';')[1];
                 final chat = mc.split(';')[2];
@@ -248,8 +251,8 @@ class _BodyState extends State<Body> {
                         onTap: () async {
                           if (chat.startsWith("file:///")) {
                             final tmpDir = await getTemporaryDirectory();
-                            final chat_s = chat.split("file:///");
-                            final path = chat_s[0] + tmpDir.path + chat_s[1];
+                            final chatS = chat.split("file:///");
+                            final path = chatS[0] + tmpDir.path + chatS[1];
                             print(path);
                             launch(path);
                           }
@@ -287,9 +290,9 @@ class _BodyState extends State<Body> {
                         onTap: () async {
                           if (chat.startsWith("file:///")) {
                             final tmpDir = await getTemporaryDirectory();
-                            final chat_s = chat.split("file:///");
+                            final chatS = chat.split("file:///");
                             final path =
-                                "file://" + tmpDir.path + "/" + chat_s[1];
+                                "file://" + tmpDir.path + "/" + chatS[1];
                             launch(path);
                           }
                         },
@@ -299,13 +302,13 @@ class _BodyState extends State<Body> {
       TextField(
           onSubmitted: (msg) {
             setState(() {
-              this.chats.add("${now()};me;$msg");
+              widget.chats.add("${now()};me;$msg");
             });
-            send_msg(message_ffi, msg.toNativeUtf8());
-            this.input_control.clear();
+            sendMsg(messageFfi, msg.toNativeUtf8());
+            this.inputControl.clear();
             this._scrollToBottom();
           },
-          controller: input_control,
+          controller: inputControl,
           decoration: InputDecoration(
               border: OutlineInputBorder(),
               suffixIcon: IconButton(
@@ -328,12 +331,12 @@ class _BodyState extends State<Body> {
                     }
                   }
                   setState(() {
-                    this.chats.add("${now()};me;$path");
+                    widget.chats.add("${now()};me;$path");
                   });
                   String fileUri = "file:///" + basename(path);
-				  //send msg needs to happen before send file!!
-                  send_msg(message_ffi, "$fileUri".toNativeUtf8());
-                  send_file(message_ffi, "$path".toNativeUtf8());
+                  //send msg needs to happen before send file!!
+                  sendMsg(messageFfi, "$fileUri".toNativeUtf8());
+                  sendFile(messageFfi, "$path".toNativeUtf8());
 
                   print("fileuri=$fileUri");
                 },
