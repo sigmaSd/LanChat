@@ -1,4 +1,5 @@
-use message_io::network::{Endpoint, NetEvent, Network, Transport};
+use message_io::network::{Endpoint, Transport};
+use message_io::node::{self, NodeTask, StoredNetEvent, StoredNodeEvent as NodeEvent};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, ffi::CStr, ffi::CString, thread, time::Duration};
 use std::{os::raw::c_char, sync::mpsc};
@@ -29,11 +30,11 @@ impl NetMessage {
 }
 
 #[repr(C)]
-#[derive(Debug)]
 pub struct MessageFFi {
     tx: mpsc::Sender<UiMessage>,
     rx_recv: mpsc::Receiver<String>,
     my_tcp_addr: String,
+    _task: NodeTask,
 }
 
 /// # Safety
@@ -64,23 +65,23 @@ pub unsafe extern "C" fn message_init(my_name: *mut c_char) -> *mut MessageFFi {
     let my_name = CStr::from_ptr(my_name);
     let my_name = my_name.to_string_lossy().to_string();
 
-    let (mut network, mut events) = Network::split();
-    let udp_addr = "238.255.0.1:5877";
+    let (handler, listener) = node::split::<NetMessage>();
+    //NOTE: exchange performance for convieniences
+    let (_task, mut receiver) = listener.enqueue();
 
     //listen tcp
-    let (_, server_addr) = network.listen(Transport::Tcp, "0.0.0.0:0").unwrap();
+    let (_, server_addr) = handler
+        .network()
+        .listen(Transport::Tcp, "0.0.0.0:0")
+        .unwrap();
+
+    let udp_addr = "239.255.0.1:5877";
 
     //listen udp
-    network.listen(Transport::Udp, udp_addr).unwrap();
+    handler.network().listen(Transport::Udp, udp_addr).unwrap();
 
     //connect udp
-    let udp_conn = network.connect(Transport::Udp, udp_addr).unwrap();
-
-    //send helloudp
-    network.send(
-        udp_conn.0,
-        &NetMessage::HelloLan(my_name.clone(), server_addr.port()).ser(),
-    );
+    let udp_conn = handler.network().connect(Transport::Udp, udp_addr).unwrap();
 
     let my_tcp_addr = format!("{}:{}", udp_conn.1.ip(), server_addr.port());
     dbg!(&my_tcp_addr);
@@ -97,29 +98,33 @@ pub unsafe extern "C" fn message_init(my_name: *mut c_char) -> *mut MessageFFi {
             std::thread::sleep(Duration::from_millis(100));
             if let Ok(msg) = rx.try_recv() {
                 match msg {
-                    UiMessage::AddPeer(name, new_peer) => {
-                        let (peer_endpoint, _) = network.connect(Transport::Tcp, new_peer).unwrap();
-                        // send hellotcp
-                        network.send(peer_endpoint, &NetMessage::HelloUser(my_name.clone()).ser());
-                        peers.insert((peer_endpoint, name));
+                    UiMessage::AddPeer(_name, new_peer) => {
+                        let (_peer_endpoint, _) =
+                            handler.network().connect(Transport::Tcp, new_peer).unwrap();
+                        //  FIXME send hellotcp?
+                        //  handler
+                        //      .network()
+                        //      .send(peer_endpoint, &NetMessage::HelloUser(my_name.clone()).ser());
+                        //  peers.insert((peer_endpoint, name));
                     }
                     UiMessage::Message(msg) => {
                         let msg = NetMessage::UserMessage(msg).ser();
+                        dbg!(&peers);
                         for peer in peers.iter() {
-                            network.send(peer.0, &msg);
+                            handler.network().send(peer.0, &msg);
                         }
                     }
                     UiMessage::Data(file_name, data) => {
                         let msg = NetMessage::UserData(file_name, data).ser();
                         for peer in peers.iter() {
-                            network.send(peer.0, &msg);
+                            handler.network().send(peer.0, &msg);
                         }
                     }
                 }
             }
-            if let Some(ev) = events.try_receive() {
+            if let Some(NodeEvent::Network(ev)) = receiver.try_receive() {
                 match ev {
-                    NetEvent::Message(endpoint, message) => {
+                    StoredNetEvent::Message(endpoint, message) => {
                         let message = {
                             data_buffer.extend(message);
                             match NetMessage::deser(&data_buffer) {
@@ -132,21 +137,20 @@ pub unsafe extern "C" fn message_init(my_name: *mut c_char) -> *mut MessageFFi {
                         };
                         match message {
                             NetMessage::HelloLan(user_name, tcp_server_port) => {
+                                dbg!(&user_name);
                                 if udp_conn.1 != endpoint.addr() {
                                     let peer_tcp_addr =
                                         format!("{}:{}", endpoint.addr().ip(), tcp_server_port);
-                                    let (peer_endpoint, _) =
-                                        network.connect(Transport::Tcp, peer_tcp_addr).unwrap();
-                                    // send hellotcp
-                                    network.send(
-                                        peer_endpoint,
-                                        &NetMessage::HelloUser(my_name.clone()).ser(),
-                                    );
+                                    let (peer_endpoint, _) = handler
+                                        .network()
+                                        .connect(Transport::Tcp, peer_tcp_addr)
+                                        .unwrap();
 
                                     peers.insert((peer_endpoint, user_name));
                                 }
                             }
                             NetMessage::HelloUser(name) => {
+                                dbg!(&name);
                                 peers.insert((endpoint, name));
                             }
                             NetMessage::UserMessage(data) => {
@@ -164,8 +168,26 @@ pub unsafe extern "C" fn message_init(my_name: *mut c_char) -> *mut MessageFFi {
                             NetMessage::Stream(_) => {}
                         }
                     }
-                    NetEvent::Connected(_x) => {}
-                    NetEvent::Disconnected(_y) => {}
+                    StoredNetEvent::Connected(x, _flag) => {
+                        dbg!(&x);
+                        if x == udp_conn.0 {
+                            // We connected to the udp multicast group
+                            // Send helloudp
+                            dbg!(handler.network().send(
+                                udp_conn.0,
+                                &NetMessage::HelloLan(my_name.clone(), server_addr.port()).ser(),
+                            ));
+                        }
+                        // Hello Tcp FIXME
+                        else {
+                            // send hellotcp
+                            handler
+                                .network()
+                                .send(x, &NetMessage::HelloUser(my_name.clone()).ser());
+                        }
+                    }
+                    StoredNetEvent::Disconnected(_y) => {}
+                    StoredNetEvent::Accepted(_, _) => {}
                 }
             }
         }
@@ -175,6 +197,7 @@ pub unsafe extern "C" fn message_init(my_name: *mut c_char) -> *mut MessageFFi {
         tx,
         rx_recv,
         my_tcp_addr,
+        _task,
     }))
 }
 
@@ -233,7 +256,8 @@ pub unsafe extern "C" fn send_file(message_ffi: *mut MessageFFi, file_path: *mut
 #[test]
 fn t() {
     unsafe {
-        let m = message_init(CString::new("qaze").unwrap().into_raw());
+        let name = CString::new("aze").unwrap().into_raw();
+        let m = message_init(name);
         let mut input = String::new();
         let stdin = std::io::stdin();
         loop {
