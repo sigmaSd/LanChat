@@ -3,5 +3,6 @@
 cd net
 cargo b
 ln -s $CARGO_TARGET_DIR/debug/librust_lib.so ../ &>/dev/null
+ln -s net/target/debug/librust_lib.so ../ &>/dev/null
 cd ..
 flutter run $argv
