@@ -72,7 +72,7 @@ pub unsafe extern "C" fn message_init(my_name: *mut c_char) -> *mut MessageFFi {
     //listen tcp
     let (_, server_addr) = handler
         .network()
-        .listen(Transport::Tcp, "0.0.0.0:0")
+        .listen(Transport::FramedTcp, "0.0.0.0:0")
         .unwrap();
 
     let udp_addr = "239.255.0.1:5877";
@@ -92,15 +92,16 @@ pub unsafe extern "C" fn message_init(my_name: *mut c_char) -> *mut MessageFFi {
     thread::spawn(move || {
         // peers: Endpoint,Name
         let mut peers: HashSet<(Endpoint, String)> = HashSet::new();
-        let mut data_buffer = vec![];
 
         loop {
             std::thread::sleep(Duration::from_millis(100));
             if let Ok(msg) = rx.try_recv() {
                 match msg {
                     UiMessage::AddPeer(_name, new_peer) => {
-                        let (_peer_endpoint, _) =
-                            handler.network().connect(Transport::Tcp, new_peer).unwrap();
+                        let (_peer_endpoint, _) = handler
+                            .network()
+                            .connect(Transport::FramedTcp, new_peer)
+                            .unwrap();
                         //  FIXME send hellotcp?
                         //  handler
                         //      .network()
@@ -126,12 +127,8 @@ pub unsafe extern "C" fn message_init(my_name: *mut c_char) -> *mut MessageFFi {
                 match ev {
                     StoredNetEvent::Message(endpoint, message) => {
                         let message = {
-                            data_buffer.extend(message);
-                            match NetMessage::deser(&data_buffer) {
-                                Ok(data) => {
-                                    data_buffer.clear();
-                                    data
-                                }
+                            match NetMessage::deser(&message) {
+                                Ok(data) => data,
                                 Err(_) => continue,
                             }
                         };
@@ -143,7 +140,7 @@ pub unsafe extern "C" fn message_init(my_name: *mut c_char) -> *mut MessageFFi {
                                         format!("{}:{}", endpoint.addr().ip(), tcp_server_port);
                                     let (peer_endpoint, _) = handler
                                         .network()
-                                        .connect(Transport::Tcp, peer_tcp_addr)
+                                        .connect(Transport::FramedTcp, peer_tcp_addr)
                                         .unwrap();
 
                                     peers.insert((peer_endpoint, user_name));
@@ -181,9 +178,9 @@ pub unsafe extern "C" fn message_init(my_name: *mut c_char) -> *mut MessageFFi {
                         // Hello Tcp FIXME
                         else {
                             // send hellotcp
-                            handler
+                            dbg!(handler
                                 .network()
-                                .send(x, &NetMessage::HelloUser(my_name.clone()).ser());
+                                .send(x, &NetMessage::HelloUser(my_name.clone()).ser()));
                         }
                     }
                     StoredNetEvent::Disconnected(_y) => {}
